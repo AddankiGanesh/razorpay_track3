@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>RevRecover — Live Checkout Demo</title>
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <style>
+    :root {
+      --bg: #07090e;
+      --card: #121722;
+      --accent: #06b6d4;
+      --accent-light: #22d3ee;
+      --muted: #8494ab;
+      --border: #1e2838;
+      --ok: #10b981;
+      --text: #f8fafc;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+    .box {
+      width: 100%;
+      max-width: 480px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.75rem;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    }
+    h1 { margin: 0 0 0.35rem; font-size: 1.35rem; font-weight: 800; }
+    p { color: var(--muted); font-size: 0.88rem; line-height: 1.45; }
+    label { display: block; font-size: 0.78rem; color: var(--muted); margin: 0.85rem 0 0.3rem; font-weight: 700; }
+    input, select {
+      width: 100%;
+      padding: 0.65rem 0.75rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #07090e;
+      color: #fff;
+      font-size: 0.9rem;
+    }
+    button {
+      width: 100%;
+      margin-top: 1rem;
+      padding: 0.75rem;
+      border: none;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent-light), var(--accent));
+      color: #042f2e;
+      font-weight: 800;
+      cursor: pointer;
+      font-size: 0.95rem;
+      transition: transform 0.15s ease;
+    }
+    button:hover { transform: translateY(-1px); }
+    button.secondary { background: #1e2838; color: #fff; border: 1px solid var(--border); margin-top: 0.5rem; }
+    .sim { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.5rem; }
+    .sim button { margin-top: 0; font-size: 0.82rem; padding: 0.55rem; }
+    .log {
+      margin-top: 1rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+      white-space: pre-wrap;
+      background: #07090e;
+      border-radius: 8px;
+      padding: 0.75rem;
+      min-height: 3rem;
+      border: 1px solid var(--border);
+      font-family: monospace;
+    }
+    a { color: var(--accent-light); }
+    .ok { color: var(--ok); }
+    .card-hint {
+      margin-top: 0.75rem;
+      padding: 0.75rem;
+      background: #07090e;
+      border-radius: 8px;
+      font-size: 0.78rem;
+      line-height: 1.45;
+      border: 1px solid var(--border);
+    }
+    code { background: #121722; padding: 0.1rem 0.35rem; border-radius: 4px; color: var(--accent-light); }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1>Checkout demo</h1>
+    <p id="intro">Real Razorpay Checkout.js (test mode). After failure, open <a href="/" target="_parent">unified UI → Case history</a> for recovery pipeline.</p>
+    <label>Amount (INR)</label>
+    <select id="amount">
+      <option value="49900">₹499 — Wrong OTP demo</option>
+      <option value="29900">₹299</option>
+      <option value="99900">₹999</option>
+    </select>
+    <label>Your email</label>
+    <input id="email" value="ganeshsuraj29@gmail.com"/>
+    <div class="card-hint">
+      <strong>Test card</strong> <code>5267 3181 8797 5449</code> · any expiry/CVV<br/>
+      OTP <code>1234</code> or <code>123456</code> = success · wrong OTP triggers recovery
+    </div>
+    <button id="pay">Pay with Razorpay</button>
+    <div class="sim">
+      <button class="secondary" data-sc="incorrect_otp">Sim wrong OTP</button>
+      <button class="secondary" data-sc="payment_cancelled">Sim cancelled</button>
+      <button class="secondary" data-sc="insufficient_funds">Sim low balance</button>
+      <button class="secondary" data-sc="bank_technical_error">Sim bank down</button>
+    </div>
+    <div class="log" id="log">Ready.</div>
+  </div>
+  <script>
+    const embed = new URLSearchParams(location.search).get('embed') === '1';
+    if (embed) document.getElementById('intro').innerHTML = 'Embedded checkout — status below.';
+
+    const log = (m, ok) => { const el = document.getElementById('log'); el.textContent = m; el.classList.toggle('ok', ok); };
+
+    async function createOrder() {
+      const amount = Number(document.getElementById('amount').value);
+      const email = document.getElementById('email').value.trim();
+      const r = await fetch('/checkout/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount_paise: amount, email })
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || 'order failed');
+      return d;
+    }
+
+    document.getElementById('pay').onclick = async () => {
+      try {
+        log('Creating order...');
+        const order = await createOrder();
+        const options = {
+          key: order.key_id,
+          amount: order.amount,
+          currency: 'INR',
+          name: 'RevRecover Demo',
+          description: 'Live checkout recovery demo',
+          order_id: order.order_id,
+          prefill: { email: order.email },
+          handler: function (response) {
+            log('Payment SUCCESS: ' + response.razorpay_payment_id + '\nOpen Case history on main UI.', true);
+          },
+          modal: {
+            ondismiss: function () {
+              log('Checkout closed. Fail OTP or use Simulate buttons.');
+            }
+          }
+        };
+        const rzp = new Razorpay(options);
+        rzp.on('payment.failed', function (resp) {
+          log('payment.failed: ' + (resp.error && resp.error.description) + '\nCheck Case history for recovery.');
+        });
+        rzp.open();
+        log('Checkout open — use test card above');
+      } catch (e) {
+        log('Error: ' + e.message);
+      }
+    };
+
+    document.querySelectorAll('[data-sc]').forEach(btn => {
+      btn.onclick = async () => {
+        const id = btn.dataset.sc;
+        try {
+          log('Simulating ' + id + '...');
+          const email = document.getElementById('email').value.trim();
+          const r = await fetch('/lab/fire/' + id, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ customer_email: email, customer_contact: '+919876543210' })
+          });
+          const d = await r.json();
+          const res = d.result || {};
+          log(res.audit_id
+            ? ('Fired ' + id + '\nAction: ' + (res.recommended_action || '—') + '\nAudit: ' + res.audit_id)
+            : ('Fired but no audit id'));
+        } catch (e) {
+          log('Error: ' + e.message);
+        }
+      };
+    });
+  </script>
+</body>
+</html>

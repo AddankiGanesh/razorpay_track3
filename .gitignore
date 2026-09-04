@@ -1,0 +1,28 @@
+# Secrets — never commit
+.env
+.env.local
+.cursor/
+
+# Large local assets (GitHub 100MB limit)
+finaldemo.mp4
+*.mp4
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+data/
+
+# Node
+node_modules/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Logs
+*.log
+logs/
